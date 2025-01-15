@@ -1,0 +1,131 @@
+#include <iostream>
+#include <vector>
+#include <fstream>
+#include <stdexcept>
+
+using namespace std;
+
+struct Pixel {
+    unsigned char b, g, r; // BMP stores pixels in BGR order
+};
+
+// Function to process (encrypt/decrypt) the image
+void processImage(vector<vector<Pixel>>& image, int key, bool encrypt) {
+    int factor = encrypt ? key : -key;
+    for (auto& row : image) {
+        for (auto& pixel : row) {
+            pixel.r = (pixel.r + factor + 256) % 256;
+            pixel.g = (pixel.g + factor + 256) % 256;
+            pixel.b = (pixel.b + factor + 256) % 256;
+        }
+    }
+}
+
+// Function to read BMP image
+void readImage(const string& path, vector<vector<Pixel>>& image, int& width, int& height) {
+    ifstream file(path, ios::binary);
+    if (!file) {
+        throw runtime_error("Error loading image: File not found.");
+    }
+
+    // Read the BMP header
+    char header[54];
+    file.read(header, 54);
+
+    // Validate BMP file signature
+    if (header[0] != 'B' || header[1] != 'M') {
+        throw runtime_error("Error: Not a valid BMP file.");
+    }
+
+    // Extract image dimensions
+    width = *reinterpret_cast<int*>(&header[18]);
+    height = *reinterpret_cast<int*>(&header[22]);
+
+    // Calculate row padding (rows must be a multiple of 4 bytes)
+    int rowPadding = (4 - (width * 3) % 4) % 4;
+
+    // Read pixel data
+    image.resize(height, vector<Pixel>(width));
+    for (int i = height - 1; i >= 0; --i) { // BMP stores rows bottom to top
+        for (int j = 0; j < width; ++j) {
+            file.read(reinterpret_cast<char*>(&image[i][j]), 3);
+        }
+        file.ignore(rowPadding); // Skip padding bytes
+    }
+}
+
+// Function to write BMP image
+void writeImage(const string& path, const vector<vector<Pixel>>& image, int width, int height) {
+    ofstream file(path, ios::binary);
+    if (!file) {
+        throw runtime_error("Error saving image: Unable to open file.");
+    }
+
+    // Prepare BMP header
+    char header[54] = {0};
+    header[0] = 'B'; header[1] = 'M';
+    int fileSize = 54 + height * ((width * 3 + 3) & ~3); // Including padding
+    *reinterpret_cast<int*>(&header[2]) = fileSize;
+    header[10] = 54;
+    header[14] = 40;
+    *reinterpret_cast<int*>(&header[18]) = width;
+    *reinterpret_cast<int*>(&header[22]) = height;
+    header[26] = 1; // Number of color planes
+    header[28] = 24; // Bits per pixel
+
+    // Write header
+    file.write(header, 54);
+
+    // Calculate row padding
+    int rowPadding = (4 - (width * 3) % 4) % 4;
+
+    // Write pixel data
+    for (int i = height - 1; i >= 0; --i) { // BMP rows are stored bottom to top
+        for (int j = 0; j < width; ++j) {
+            file.write(reinterpret_cast<const char*>(&image[i][j]), 3);
+        }
+        file.write("\0\0\0", rowPadding); // Write padding bytes
+    }
+}
+
+int main() {
+    string path;
+    cout << "Image path: ";
+    cin >> path;
+
+    vector<vector<Pixel>> image;
+    int width, height;
+
+    try {
+        readImage(path, image, width, height);
+    } catch (const exception& e) {
+        cerr << e.what() << endl;
+        return -1;
+    }
+
+    int key;
+    cout << "Key: ";
+    cin >> key;
+
+    // Encrypt the image
+    processImage(image, key, true);
+    try {
+        writeImage("encrypted.bmp", image, width, height);
+        cout << "Encrypted image saved as 'encrypted.bmp'." << endl;
+    } catch (const exception& e) {
+        cerr << e.what() << endl;
+        return -1;
+    }
+
+    // Decrypt the image
+    processImage(image, key, false);
+    try {
+        writeImage("decrypted.bmp", image, width, height);
+        cout << "Decrypted image saved as 'decrypted.bmp'." << endl;
+    } catch (const exception& e) {
+        cerr << e.what() << endl;
+        return -1;
+    }
+
+    return 0;
+}
