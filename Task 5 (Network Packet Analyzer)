@@ -1,0 +1,38 @@
+
+#include <iostream>
+#include <netinet/ip.h>
+#include <netinet/if_ether.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+int main() {
+    int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_IP)); // Raw socket for IP packets
+    if (sock < 0) {
+        perror("Socket creation failed");
+        return 1;
+    }
+
+    unsigned char buffer[65536];
+    std::cout << "Listening for packets... Press Ctrl+C to stop.\n";
+
+    while (true) {
+        ssize_t dataSize = recvfrom(sock, buffer, sizeof(buffer), 0, nullptr, nullptr);
+        if (dataSize < 0) continue;
+
+        auto *ipHeader = (struct iphdr *)(buffer + sizeof(struct ether_header)); // IP header
+        char srcIP[INET_ADDRSTRLEN], destIP[INET_ADDRSTRLEN];
+
+        inet_ntop(AF_INET, &ipHeader->saddr, srcIP, INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &ipHeader->daddr, destIP, INET_ADDRSTRLEN);
+
+        std::cout << "Src: " << srcIP << " -> Dest: " << destIP
+                  << " | Protocol: " << (ipHeader->protocol == IPPROTO_TCP ? "TCP" : 
+                                         ipHeader->protocol == IPPROTO_UDP ? "UDP" : "Other")
+                  << "\n";
+    }
+
+    close(sock);
+    return 0;
+}
+
